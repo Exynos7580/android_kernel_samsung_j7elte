@@ -28,6 +28,7 @@
 #include <linux/workqueue.h>
 
 #include "cpufreq_governor.h"
+#include "cpu_load_metric.h"
 
 static struct attribute_group *get_sysfs_attr(struct dbs_data *dbs_data)
 {
@@ -142,6 +143,8 @@ void dbs_check_cpu(struct dbs_data *dbs_data, int cpu)
 
 		if (load > max_load)
 			max_load = load;
+
+		update_cpu_metric(j, cur_wall_time, idle_time, wall_time, policy);
 	}
 
 	dbs_data->cdata->gov_check_cpu(cpu, max_load);

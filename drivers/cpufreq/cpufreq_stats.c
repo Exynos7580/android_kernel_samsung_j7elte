@@ -23,6 +23,9 @@
 #include <linux/sort.h>
 #include <linux/err.h>
 #include <asm/cputime.h>
+#ifdef CONFIG_BL_SWITCHER
+#include <asm/bL_switcher.h>
+#endif
 
 static spinlock_t cpufreq_stats_lock;
 
@@ -55,6 +58,7 @@ static struct all_freq_table *all_freq_table;
 
 static DEFINE_PER_CPU(struct all_cpufreq_stats *, all_cpufreq_stats);
 static DEFINE_PER_CPU(struct cpufreq_stats *, cpufreq_stats_table);
+static DEFINE_PER_CPU(struct cpufreq_stats *, prev_cpufreq_stats_table);
 
 struct cpufreq_stats_attribute {
 	struct attribute attr;
@@ -249,8 +253,31 @@ static int freq_table_get_index(struct cpufreq_stats *stat, unsigned int freq)
 static void cpufreq_stats_free_table(unsigned int cpu)
 {
 	struct cpufreq_stats *stat = per_cpu(cpufreq_stats_table, cpu);
+	struct cpufreq_stats *prev_stat = per_cpu(prev_cpufreq_stats_table, cpu);
+	unsigned int alloc_size;
 
 	if (stat) {
+		prev_stat = kzalloc(sizeof(*stat), GFP_KERNEL);
+		if (!prev_stat) {
+			pr_err("%s: prev_stat kzalloc failed\n", __func__);
+			return;
+		}
+
+		memcpy(prev_stat, stat, sizeof(*stat));
+		per_cpu(prev_cpufreq_stats_table, cpu) = prev_stat;
+
+		alloc_size = stat->max_state * sizeof(int) + stat->max_state * sizeof(u64);
+#ifdef CONFIG_CPU_FREQ_STAT_DETAILS
+		alloc_size = stat->max_state * stat->max_state * sizeof(int);
+#endif
+		prev_stat->time_in_state = kzalloc(alloc_size, GFP_KERNEL);
+		if (!prev_stat->time_in_state) {
+			pr_err("%s: prev_stat time_in_state kzalloc failed\n", __func__);
+			kfree(prev_stat);
+			return;
+		}
+		memcpy(prev_stat->time_in_state, stat->time_in_state, alloc_size);
+
 		pr_debug("%s: Free stat table\n", __func__);
 		kfree(stat->time_in_state);
 		kfree(stat);
@@ -311,11 +338,16 @@ static int cpufreq_stats_create_table(struct cpufreq_policy *policy,
 	struct cpufreq_policy *data;
 	unsigned int alloc_size;
 	unsigned int cpu = policy->cpu;
+	struct cpufreq_stats *prev_stat = per_cpu(prev_cpufreq_stats_table, cpu);
+
 	if (per_cpu(cpufreq_stats_table, cpu))
 		return -EBUSY;
 	stat = kzalloc(sizeof(struct cpufreq_stats), GFP_KERNEL);
 	if ((stat) == NULL)
 		return -ENOMEM;
+
+	if (prev_stat)
+		memcpy(stat, prev_stat, sizeof(*prev_stat));
 
 	data = cpufreq_cpu_get(cpu);
 	if (data == NULL) {
@@ -362,9 +394,19 @@ static int cpufreq_stats_create_table(struct cpufreq_policy *policy,
 			stat->freq_table[j++] = freq;
 	}
 	stat->state_num = j;
+
+	if (prev_stat) {
+		memcpy(stat->time_in_state, prev_stat->time_in_state, alloc_size);
+		kfree(prev_stat->time_in_state);
+		kfree(prev_stat);
+		per_cpu(prev_cpufreq_stats_table, cpu) = NULL;
+	}
+
 	spin_lock(&cpufreq_stats_lock);
 	stat->last_time = get_jiffies_64();
 	stat->last_index = freq_table_get_index(stat, policy->cur);
+	if ((int)stat->last_index < 0)
+		stat->last_index = 0;
 	spin_unlock(&cpufreq_stats_lock);
 	cpufreq_cpu_put(data);
 	return 0;
@@ -618,7 +660,7 @@ static struct notifier_block notifier_trans_block = {
 	.notifier_call = cpufreq_stat_notifier_trans
 };
 
-static int __init cpufreq_stats_init(void)
+static int cpufreq_stats_setup(void)
 {
 	int ret;
 	unsigned int cpu;
@@ -652,7 +694,8 @@ static int __init cpufreq_stats_init(void)
 
 	return 0;
 }
-static void __exit cpufreq_stats_exit(void)
+
+static void cpufreq_stats_cleanup(void)
 {
 	unsigned int cpu;
 
@@ -666,6 +709,54 @@ static void __exit cpufreq_stats_exit(void)
 		cpufreq_stats_free_sysfs(cpu);
 	}
 	cpufreq_allstats_free();
+}
+
+#ifdef CONFIG_BL_SWITCHER
+static int cpufreq_stats_switcher_notifier(struct notifier_block *nfb,
+					unsigned long action, void *_arg)
+{
+	switch (action) {
+	case BL_NOTIFY_PRE_ENABLE:
+	case BL_NOTIFY_PRE_DISABLE:
+		cpufreq_stats_cleanup();
+		break;
+
+	case BL_NOTIFY_POST_ENABLE:
+	case BL_NOTIFY_POST_DISABLE:
+		cpufreq_stats_setup();
+		break;
+
+	default:
+		return NOTIFY_DONE;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block switcher_notifier = {
+	.notifier_call = cpufreq_stats_switcher_notifier,
+};
+#endif
+
+static int __init cpufreq_stats_init(void)
+{
+	int ret;
+	spin_lock_init(&cpufreq_stats_lock);
+
+	ret = cpufreq_stats_setup();
+#ifdef CONFIG_BL_SWITCHER
+	if (!ret)
+		bL_switcher_register_notifier(&switcher_notifier);
+#endif
+	return ret;
+}
+
+static void __exit cpufreq_stats_exit(void)
+{
+#ifdef CONFIG_BL_SWITCHER
+	bL_switcher_unregister_notifier(&switcher_notifier);
+#endif
+	cpufreq_stats_cleanup();
 }
 
 MODULE_AUTHOR("Zou Nan hai <nanhai.zou@intel.com>");

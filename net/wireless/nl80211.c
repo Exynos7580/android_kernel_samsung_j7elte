@@ -7241,7 +7241,16 @@ static int nl80211_tx_mgmt(struct sk_buff *skb, struct genl_info *info)
 		 * of time (10ms) but no longer than the driver supports.
 		 */
 		if (wait < NL80211_MIN_REMAIN_ON_CHANNEL_TIME ||
+#if defined(CONFIG_BROADCOM_WIFI)
+			/* To reduce GAS initial request / response time, 
+			 * we modified the Broadcom official driver structure 
+			 * ex) wait[31:25] -> retry counts until receiving ACK 
+			 *     wait[24:0] -> wait time
+			 */
+			(wait & 0x00ffffff) > rdev->wiphy.max_remain_on_channel_duration)
+#else
 		    wait > rdev->wiphy.max_remain_on_channel_duration)
+#endif
 			return -EINVAL;
 
 	}

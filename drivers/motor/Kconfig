@@ -1,0 +1,33 @@
+#
+# haptic devices
+#
+
+comment "Haptic configs"
+
+config DRV2603
+	tristate "TI DRV2603 haptic"
+	default n
+	depends on ANDROID_TIMED_OUTPUT
+	help
+		If you say yes here you will get support for the
+		haptic driver of TI DRV2603.
+
+config SEC_VIB
+	tristate "SEC DC Vibrator"
+	default n
+	depends on ANDROID_TIMED_OUTPUT
+	help
+		If you say yes here you will get support for the
+		SEC DC Vibrator.
+
+config IMM_VIB
+	tristate "Immersion TouchSense"
+	default n
+	help
+	  Say Y to enable Immersion TouchSense.
+
+config IMM_DRV_VERSION_3_7
+	tristate "Immersion 3.7 motor driver"
+	default n
+	help
+	  Say Y to enable Immersion 3.7 motor driver.
