@@ -346,7 +346,9 @@ extern void register_hook_logbuf(void (*)(const char));
 #else
 extern void register_hook_logbuf(void (*)(const char *, size_t));
 #endif
+#ifdef CONFIG_ANDROID_LOGGER
 extern void register_hook_logger(void (*)(const char *, const char *, size_t));
+#endif
 
 static DEFINE_SPINLOCK(ess_lock);
 static unsigned ess_callstack = CONFIG_EXYNOS_SNAPSHOT_CALLSTACK;
@@ -1304,8 +1306,10 @@ static int __init exynos_ss_init(void)
 
 		register_hook_logbuf(exynos_ss_hook_logbuf);
 
+#ifdef CONFIG_ANDROID_LOGGER
 #ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
 		register_hook_logger(exynos_ss_hook_logger);
+#endif
 #endif
 		register_reboot_notifier(&nb_reboot_block);
 		atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
