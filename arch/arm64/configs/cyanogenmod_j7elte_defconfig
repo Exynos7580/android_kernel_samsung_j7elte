@@ -220,7 +220,7 @@ CONFIG_BLOCK_SUPPORT_STLOG=y
 # IO Schedulers
 #
 CONFIG_IOSCHED_NOOP=y
-# CONFIG_IOSCHED_DEADLINE is not set
+CONFIG_IOSCHED_DEADLINE=y
 CONFIG_IOSCHED_CFQ=y
 CONFIG_DEFAULT_CFQ=y
 # CONFIG_DEFAULT_NOOP is not set
@@ -381,9 +381,9 @@ CONFIG_SECCOMP=y
 #
 # Boot options
 #
-CONFIG_CMDLINE="console=ttySAC1 androidboot.hardware=samsungexynos7580"
-CONFIG_CMDLINE_FROM_BOOTLOADER=y
-# CONFIG_CMDLINE_EXTEND is not set
+CONFIG_CMDLINE="androidboot.hardware=samsungexynos7580 console=ttySAC1 androidboot.selinux=permissive"
+# CONFIG_CMDLINE_FROM_BOOTLOADER is not set
+CONFIG_CMDLINE_EXTEND=y
 # CONFIG_CMDLINE_FORCE is not set
 # CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE is not set
 
