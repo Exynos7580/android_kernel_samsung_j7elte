@@ -1219,6 +1219,7 @@
 					&audio_codec_cod3022x>;
 		samsung,auxdev = <&s2801x>;
 		samsung,use-externel-jd;
+		samsung,codec-uses-i2scdclk;
 		clocks = <&clock 151>;		 /* sclk_i2s */
 		clock-names = "codec_bclk";
 		mic-bias-mode = <1 2 0>;
@@ -1291,12 +1292,16 @@
 			stk,vio-supply = <&ldo34_reg>;
 			stk,irq-gpio = <&gpa1 4 0>;
 			stk,state-reg = <0x2d>;
-			stk,psctrl-reg = <0x71>;
+			stk,psctrl-reg = <0x70>;
 			stk,alsctrl-reg = <0x2A>;
 			stk,ledctrl-reg = <0xFF>;
 			stk,wait-reg = <0x03>;
-			stk,ps-thd-h = <50>;
-			stk,ps-thd-l = <30>;
+			stk,ps-thd-h = <18>;
+			stk,ps-thd-l = <13>;
+			stk,ps-cancel-thd-h = <10>;
+			stk,ps-cancel-thd-l = <7>;
+			stk,ps-cal-skip-adc = <8>;
+			stk,ps-cal-fail-adc = <17>;
 			stk,ps-default-offset = <0>;
 			stk,transmittance = <500>;
 		};
@@ -1550,6 +1555,12 @@
 					   20 0 0 800000 0 416000 100000 0 1
 					   50 0 0 1000000 0 825000 100000 0 1
 					  100 0 0 1400000 0 825000 100000 0 1>;
+		};
+		boot_device@2 {
+			net_boost,label="USB";
+			net_boost,node="rndis0";
+			net_boost,table_size = <1>;
+			net_boost,table= < 1 0 0 0 0 0 0 0 1 >;
 		};
 
 		/* Example

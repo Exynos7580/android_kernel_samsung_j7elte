@@ -1222,6 +1222,7 @@
 					&audio_codec_cod3022x>;
 		samsung,auxdev = <&s2801x>;
 		samsung,use-externel-jd;
+		samsung,codec-uses-i2scdclk;
 		clocks = <&clock 151>;		 /* sclk_i2s */
 		clock-names = "codec_bclk";
 		mic-bias-mode = <1 2 0>;
@@ -1557,6 +1558,12 @@
 					   20 0 0 800000 0 416000 100000 0 1
 					   50 0 0 1000000 0 825000 100000 0 1
 					  100 0 0 1400000 0 825000 100000 0 1>;
+		};
+		boot_device@2 {
+			net_boost,label="USB";
+			net_boost,node="rndis0";
+			net_boost,table_size = <1>;
+			net_boost,table= < 1 0 0 0 0 0 0 0 1 >;
 		};
 
 		/* Example

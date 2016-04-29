@@ -20,6 +20,9 @@
 
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+#include <linux/usb/composite.h>
+#endif
 /* Bulk-Only Mass Storage Reset (class-specific request) */
 #define GET_MAX_LUN_REQUEST	0xFE
 #define BOT_RESET_REQUEST	0xFF
@@ -106,7 +109,6 @@ static int aligned_map_buf(struct s3c_request *req, int in)
 {
 	if ((u64)req->req.buf & 3) {
 		DEBUG("Buffer is not aligned %x\n", req->req.buf);
-		req->not_aligned = true;
 
 		/* Allocate bounce buffer */
 		req->bounce_buf = req->req.buf;
@@ -119,6 +121,7 @@ static int aligned_map_buf(struct s3c_request *req, int in)
 		}
 		if (in)
 			memcpy(req->req.buf, req->bounce_buf, req->req.length);
+		req->not_aligned = true;
 	}
 
 	return 0;
@@ -576,11 +579,21 @@ static irqreturn_t s3c_udc_irq(int irq, void *_dev)
 			} else
 				reset_available = 1;
 		} else {
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+			struct usb_composite_dev *cdev;
+#endif
 			reset_available = 1;
 			printk(KERN_DEBUG "\t RESET handling skipped\n");
 			DEBUG_ISR("\t\tRESET handling skipped\n");
 			/* report disconnect; the driver is already quiesced */
 			if (dev->driver) {
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+				cdev = get_gadget_data(&dev->gadget);
+				if (cdev != NULL) {
+					cdev->mute_switch = 0;
+					cdev->force_disconnect = 1;
+				}
+#endif
 				spin_unlock(&dev->lock);
 				dev->driver->disconnect(&dev->gadget);
 				spin_lock(&dev->lock);

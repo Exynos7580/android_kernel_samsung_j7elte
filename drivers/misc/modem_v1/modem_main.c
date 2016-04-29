@@ -816,7 +816,7 @@ static void modem_shutdown(struct platform_device *pdev)
 	mc->ops.modem_shutdown(mc);
 	mc->phone_state = STATE_OFFLINE;
 
-	evt_log(0, "%s(%s)\n", mc->name, FUNC);
+	mif_err("%s\n", mc->name);
 }
 
 static int modem_suspend(struct device *pdev)
@@ -839,7 +839,7 @@ static int modem_suspend(struct device *pdev)
 	mbox_set_interrupt(mc->int_pda_active);
 #endif
 
-	evt_log(0, "%s: %s\n", FUNC, mc->name);
+	mif_err("%s\n", mc->name);
 
 	return 0;
 }
@@ -871,7 +871,7 @@ static int modem_resume(struct device *pdev)
 	mbox_set_interrupt(mc->int_pda_active);
 #endif
 
-	evt_log(0, "%s: %s\n", FUNC, mc->name);
+	mif_err("%s\n", mc->name);
 
 	return 0;
 }

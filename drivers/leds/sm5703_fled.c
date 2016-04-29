@@ -145,6 +145,7 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 {
 	int sel = 0;
 	sm_fled_info_t *fled_info = sm_fled_get_info_by_name(NULL);
+	sm5703_fled_info_t *info = (sm5703_fled_info_t *)fled_info;
 	int i, nValue=0;
 	struct pinctrl *pinctrl;
 
@@ -169,6 +170,8 @@ static ssize_t flash_store(struct device *dev, struct device_attribute *attr,
 			sm5703_fled_flash(fled_info,TURN_WAY_GPIO);
 			sm5703_fled_notification(fled_info);
 
+			/* Set torch current */
+			sm5703_fled_set_movie_current_sel(fled_info, info->pdata->fled_torch_current);
 			pinctrl = devm_pinctrl_get_select(sm5703_dev, FLED_PINCTRL_STATE_SLEEP);
 			if (IS_ERR(pinctrl))
 				pr_err("%s: flash %s pins are not configured\n", __func__, FLED_PINCTRL_STATE_SLEEP);
