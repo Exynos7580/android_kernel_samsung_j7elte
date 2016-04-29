@@ -60,7 +60,18 @@ bool is_exynos7580_ver1(void)
 
 	data = (__raw_readl(S5P_VA_CHIPID2 + 0xC) >> 8) & 0x7;
 
-	return data == 0x01;
+	switch (data) {
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+		return 1;
+	case 5:
+	case 6:
+		panic("chipid error = %x\n", data);
+	}
+
+	return 0;
 }
 #endif
 

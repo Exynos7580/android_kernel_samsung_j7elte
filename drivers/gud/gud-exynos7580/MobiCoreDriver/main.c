@@ -109,8 +109,11 @@ static struct mc_instance *get_instance(struct file *file)
 
 uint32_t mc_get_new_handle(void)
 {
+	static DEFINE_MUTEX(local_mutex);
 	uint32_t handle;
 	struct mc_buffer *buffer;
+	
+	mutex_lock(&local_mutex);
 	/* assumption ctx.bufs_lock mutex is locked */
 retry:
 	handle = atomic_inc_return(&ctx.handle_counter);
@@ -128,6 +131,7 @@ retry:
 		if (buffer->handle == handle)
 			goto retry;
 	}
+	mutex_unlock(&local_mutex);
 
 	return handle;
 }
@@ -1607,6 +1611,15 @@ static int __init mobicore_init(void)
 
 	/* init lock for the buffers list */
 	mutex_init(&ctx.bufs_lock);
+	
+	/* init lock for core switch processing */
+	mutex_init(&ctx.core_switch_lock);
+
+	/*
+	 * ExySp: for sos performance
+	 * migrate secure OS to a non-booting little core
+	 */
+	mc_switch_core(NONBOOT_LITTLE_CORE);
 
 	memset(&ctx.mci_base, 0, sizeof(ctx.mci_base));
 	MCDRV_DBG(mcd, "initialized");

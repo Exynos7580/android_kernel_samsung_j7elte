@@ -2348,7 +2348,6 @@ int security_fs_use(
 {
 	int rc = 0;
 	struct ocontext *c;
-	u32 tmpsid;
 
 	read_lock(&policy_rwlock);
 
@@ -2361,14 +2360,18 @@ int security_fs_use(
 
 	if (c) {
 		*behavior = c->v.behavior;
-		if (!c->sid[0]) {
+		//SEC_SELinux : debug and retry the search for SID in case of SECINITSID_UNLABELED
+		printk(KERN_INFO "SELinux: fstype:%s, behavior:%d, con_sid:%d \n", c->u.name, c->v.behavior, c->sid[0]);
+		if (!c->sid[0] || c->sid[0] == SECINITSID_UNLABELED ) {
 			rc = sidtab_context_to_sid(&sidtab, &c->context[0],
-						   &tmpsid);
-			c->sid[0] = tmpsid;
+						   &c->sid[0]);
 			if (rc)
 				goto out;
 		}
 		*sid = c->sid[0];
+		//SEC_SELinux : debug
+		printk(KERN_INFO "SELinux: fstype:%s assigned superblock SID %d \n", c->u.name, *sid);
+
 	} else {
 		rc = security_genfs_sid(fstype, "/", SECCLASS_DIR, sid);
 		if (rc) {

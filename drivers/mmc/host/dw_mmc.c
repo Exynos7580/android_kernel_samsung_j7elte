@@ -163,6 +163,7 @@ do {					\
 #define MAX_RETRY_CNT	2
 #define DRTO		200
 #define DRTO_MON_PERIOD	50
+#define DW_MCI_BUSY_WAIT_TIMEOUT	250
 
 static struct dma_attrs dw_mci_direct_attrs;
 
@@ -1585,7 +1586,7 @@ static void dw_mci_submit_data(struct dw_mci *host, struct mmc_data *data)
 static bool dw_mci_wait_data_busy(struct dw_mci *host, struct mmc_request *mrq)
 {
 	u32 status;
-	unsigned long timeout = jiffies + msecs_to_jiffies(500);
+	unsigned long timeout = jiffies + msecs_to_jiffies(DW_MCI_BUSY_WAIT_TIMEOUT);
 	struct dw_mci_slot *slot = host->cur_slot;
 	int try = 2;
 	u32 clkena;
@@ -1616,7 +1617,7 @@ static bool dw_mci_wait_data_busy(struct dw_mci *host, struct mmc_request *mrq)
 
 			dw_mci_update_clock(host->cur_slot);
 		}
-		timeout = jiffies + msecs_to_jiffies(500);
+		timeout = jiffies + msecs_to_jiffies(DW_MCI_BUSY_WAIT_TIMEOUT);
 	} while (--try);
 out:
 	if (host->cur_slot) {
@@ -4957,8 +4958,7 @@ int dw_mci_suspend(struct dw_mci *host)
 		host->transferred_cnt = 0;
 		host->cmd_cnt = 0;
 	}
-	if (host->vmmc)
-		regulator_disable(host->vmmc);
+
 
 	if (host->pdata->enable_cclk_on_suspend) {
 		host->pdata->on_suspend = true;
@@ -4988,19 +4988,6 @@ int dw_mci_resume(struct dw_mci *host)
 		host->pdata->on_suspend = false;
 
 	host->current_speed = 0;
-
-	if (host->pdata->ext_setpower)
-		host->pdata->ext_setpower(host,
-			DW_MMC_EXT_VMMC_ON | DW_MMC_EXT_VQMMC_ON);
-
-	if (host->vmmc) {
-		ret = regulator_enable(host->vmmc);
-		if (ret) {
-			dev_err(host->dev,
-				"failed to enable regulator: %d\n", ret);
-			return ret;
-		}
-	}
 
 	if (host->pdata->use_biu_gate_clock)
 		atomic_inc_return(&host->biu_en_win);

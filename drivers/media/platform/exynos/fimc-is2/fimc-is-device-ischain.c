@@ -4054,8 +4054,14 @@ int fimc_is_ischain_3aa_close(struct fimc_is_device_ischain *device,
 #ifdef ENABLE_FD_DMA_INPUT
 	device->fd_shot->status = false;
 
+	if (!device->imemory.kvaddr_fdshot) {
+		merr("fdshot is NULL", device);
+		ret = -EINVAL;
+		return ret;
+	}
+
 	/* source address initialize */
-	for(i=0;i<MAX_FD_BUF;i++) {
+	for (i = 0; i < MAX_FD_BUF; i++) {
 		temp = (struct camera2_shot *)device->imemory.kvaddr_fdshot[i];
 		temp->uctl.scalerUd.sourceAddress[0] = 0;
 		temp->uctl.scalerUd.sourceAddress[1] = 0;
