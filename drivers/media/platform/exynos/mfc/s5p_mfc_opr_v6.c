@@ -1391,7 +1391,8 @@ static int s5p_mfc_set_slice_mode(struct s5p_mfc_ctx *ctx)
 	struct s5p_mfc_enc *enc = ctx->enc_priv;
 
 	/* multi-slice control */
-	if (enc->slice_mode == V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_BYTES)
+	if ((enc->slice_mode == V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_BYTES) &&
+			(!IS_MFCv78(dev)))
 		WRITEL((enc->slice_mode + 0x4), S5P_FIMV_E_MSLICE_MODE);
 	else
 		WRITEL(enc->slice_mode, S5P_FIMV_E_MSLICE_MODE);

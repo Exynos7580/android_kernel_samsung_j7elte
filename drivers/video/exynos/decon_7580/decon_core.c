@@ -2266,6 +2266,12 @@ err:
 	return ret;
 }
 
+static ssize_t decon_fb_read(struct fb_info *info, char __user *buf,
+		size_t count, loff_t *ppos)
+{
+	return 0;
+}
+
 static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
@@ -2404,6 +2410,7 @@ static struct fb_ops decon_fb_ops = {
 	.fb_imageblit   = cfb_imageblit,
 	.fb_ioctl	= decon_ioctl,
 	.fb_compat_ioctl = decon_compat_ioctl,
+	.fb_read	= decon_fb_read,
 	.fb_pan_display	= decon_pan_display,
 	.fb_mmap	= decon_mmap,
 	.fb_release	= decon_release,

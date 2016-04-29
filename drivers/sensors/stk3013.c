@@ -627,10 +627,8 @@ static int32_t stk3013_enable_ps(struct device *dev, uint8_t enable, uint8_t val
 #endif/* #ifdef STK_CHK_REG */
 		{
 			usleep_range(4000, 5000);
-			ret = stk3013_get_flag(ps_data);
-			if (ret < 0)
-				return ret;
-			near_far_state = ret & STK_FLG_NF_MASK;
+			// Always send far event upon sensor enable to send close event again when interrupt occurs
+			near_far_state = 1;
 			ps_data->ps_distance_last = near_far_state;
 			input_report_abs(ps_data->ps_input_dev, ABS_DISTANCE, near_far_state);
 			input_sync(ps_data->ps_input_dev);

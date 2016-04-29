@@ -42,6 +42,7 @@
 
 /* Set Parameters for Secure OS Boosting */
 #define DEFAULT_LITTLE_CORE		0
+#define NONBOOT_LITTLE_CORE		1
 #define DEFAULT_BIG_CORE		4
 
 #define MC_INTR_LOCAL_TIMER		(IRQ_SPI(106) + DEFAULT_BIG_CORE)
@@ -49,6 +50,7 @@
 #define LOCAL_TIMER_PERIOD		50
 
 #define DEFAULT_SECOS_BOOST_TIME	5000
+#define MAX_SECOS_BOOST_TIME		600000	/* 600 sec */
 
 #define DUMP_TBASE_HALT_STATUS
 

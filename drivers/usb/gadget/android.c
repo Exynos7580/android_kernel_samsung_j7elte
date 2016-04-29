@@ -2020,7 +2020,6 @@ static void android_disconnect(struct usb_composite_dev *cdev)
 		printk(KERN_DEBUG"usb: %s mute_switch con(%d) sw(%d)\n",
 			 __func__, dev->connected, dev->sw_connected);
 	} else {
-		set_ncm_ready(false);
 		if (cdev->force_disconnect) {
 			dev->sw_connected = 1;
 			printk(KERN_DEBUG"usb: %s force_disconnect\n",

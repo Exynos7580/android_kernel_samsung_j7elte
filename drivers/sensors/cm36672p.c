@@ -126,6 +126,8 @@ struct cm36672p_data {
 	struct hrtimer prox_timer;
 	struct workqueue_struct *prox_wq;
 	struct work_struct work_prox;
+	struct workqueue_struct *prox_wq_irq;
+	struct work_struct work_prox_irq;
 	struct device *proximity_dev;
 	struct regulator *vdd;
 	struct regulator *vio;
@@ -729,32 +731,11 @@ static struct device_attribute *prox_sensor_attrs[] = {
 irqreturn_t proximity_irq_thread_fn(int irq, void *user_data)
 {
 	struct cm36672p_data *data = user_data;
-	u8 val;
-	u16 ps_data = 0;
-	int enabled;
-#ifdef CM36672P_DEBUG
-	static int count;
-	pr_info("%s\n", __func__);
-#endif
-
-	enabled = atomic_read(&data->enable);
-	val = gpio_get_value(data->pdata->irq);
-	cm36672p_i2c_read_word(data, REG_PS_DATA, &ps_data);
-#ifdef CM36672P_DEBUG
-	pr_info("%s, enabled = %d, count = %d\n", __func__, enabled, count++);
-#endif
-
-	if (enabled) {
-		/* 0 is close, 1 is far */
-		input_report_abs(data->proximity_input_dev, ABS_DISTANCE,
-			val);
-		input_sync(data->proximity_input_dev);
-	}
 
 	wake_lock_timeout(&data->prx_wake_lock, 3 * HZ);
+	queue_work(data->prox_wq_irq, &data->work_prox_irq);
 
-	pr_info("%s, val = %u, ps_data = %u (close:0, far:1)\n",
-		__func__, val, ps_data);
+	pr_info("cm36672p irq_thread is called\n");
 
 	return IRQ_HANDLED;
 }
@@ -784,6 +765,39 @@ static void proximity_get_avg_val(struct cm36672p_data *data)
 	data->avg[0] = min;
 	data->avg[1] = avg;
 	data->avg[2] = max;
+}
+
+static void cm36672_work_func_prox_irq(struct work_struct *work)
+{
+	struct cm36672p_data *data = container_of(work, struct cm36672p_data,
+						  work_prox_irq);
+	u8 val;
+	u16 ps_data = 0;
+	int enabled;
+#ifdef CM36672P_DEBUG
+	static int count;
+	pr_info("%s\n", __func__);
+#endif
+
+	enabled = atomic_read(&data->enable);
+	val = gpio_get_value(data->pdata->irq);
+	cm36672p_i2c_read_word(data, REG_PS_DATA, &ps_data);
+#ifdef CM36672P_DEBUG
+	pr_info("%s, enabled = %d, count = %d\n", __func__, enabled, count++);
+#endif
+
+	if (enabled) {
+		/* Prevent false reporting of close event due to RF noise causing irq line fluctuation,
+		   by reporting event only when ps_data is above high threshold value */
+		if (val || ps_data > ps_reg_init_setting[PS_THD_HIGH][CMD] - 1) {
+			/* 0 is close, 1 is far */
+			input_report_abs(data->proximity_input_dev, ABS_DISTANCE,
+				val);
+			input_sync(data->proximity_input_dev);
+			pr_info("%s, val = %u, ps_data = %u (close:0, far:1)\n",
+				__func__, val, ps_data);
+		}
+	}
 }
 
 static void cm36672_work_func_prox(struct work_struct *work)
@@ -1178,8 +1192,18 @@ static int cm36672p_i2c_probe(struct i2c_client *client,
 			__func__);
 		goto err_create_prox_workqueue;
 	}
+
+	data->prox_wq_irq = create_singlethread_workqueue("cm36672_wq_irq");
+	if (!data->prox_wq_irq) {
+		ret = -ENOMEM;
+		pr_err("%s, could not create prox_irq workqueue\n",
+			__func__);
+		goto err_create_prox_irq_workqueue;
+	}
+	
 	/* this is the thread function we run on the work queue */
 	INIT_WORK(&data->work_prox, cm36672_work_func_prox);
+	INIT_WORK(&data->work_prox_irq, cm36672_work_func_prox_irq);
 
 	/* set sysfs for proximity sensor */
 	ret = sensors_register(data->proximity_dev,
@@ -1198,6 +1222,8 @@ static int cm36672p_i2c_probe(struct i2c_client *client,
 
 /* error, unwind it all */
 prox_sensor_register_failed:
+	destroy_workqueue(data->prox_wq_irq);
+err_create_prox_irq_workqueue:
 	destroy_workqueue(data->prox_wq);
 err_create_prox_workqueue:
 	free_irq(data->irq, data);

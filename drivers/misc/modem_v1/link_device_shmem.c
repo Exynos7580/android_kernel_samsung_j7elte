@@ -214,14 +214,14 @@ static void shmem_forced_cp_crash(struct mem_link_device *mld)
 	set_access(mld, 0);
 
 	if (atomic_inc_return(&mld->forced_cp_crash) > 1) {
-		evt_log(0, "%s: %s: ALREADY in progress <%pf>\n",
-			FUNC, ld->name, CALLER);
+		mif_err("%s: ALREADY in progress <%pf>\n",
+			ld->name, CALLER);
 		return;
 	}
 
 	if (!cp_online(mc) && !cp_booting(mc)) {
-		evt_log(0, "%s: %s: %s.state %s != ONLINE <%pf>\n",
-			FUNC, ld->name, mc->name, mc_state(mc), CALLER);
+		mif_err("%s: %s.state %s != ONLINE <%pf>\n",
+			ld->name, mc->name, mc_state(mc), CALLER);
 		return;
 	}
 
@@ -244,7 +244,7 @@ static void shmem_forced_cp_crash(struct mem_link_device *mld)
 		shmem_forced_cp_crash(mld);
 	}
 
-	evt_log(0, "%s->%s: CP_CRASH_REQ <%pf>\n", ld->name, mc->name, CALLER);
+	mif_err("%s->%s: CP_CRASH_REQ <%pf>\n", ld->name, mc->name, CALLER);
 }
 
 #endif
@@ -370,7 +370,7 @@ static void cmd_crash_reset_handler(struct mem_link_device *mld)
 	mld->state = LINK_STATE_OFFLINE;
 	spin_unlock_irqrestore(&mld->state_lock, flags);
 
-	evt_log(0, "%s<-%s: ERR! CP_CRASH_RESET\n", ld->name, mc->name);
+	mif_err("%s<-%s: ERR! CP_CRASH_RESET\n", ld->name, mc->name);
 
 	shmem_handle_cp_crash(mld, STATE_CRASH_RESET);
 }
@@ -389,9 +389,9 @@ static void cmd_crash_exit_handler(struct mem_link_device *mld)
 		del_timer(&mld->crash_ack_timer);
 
 	if (atomic_read(&mld->forced_cp_crash))
-		evt_log(0, "%s<-%s: CP_CRASH_ACK\n", ld->name, mc->name);
+		mif_err("%s<-%s: CP_CRASH_ACK\n", ld->name, mc->name);
 	else
-		evt_log(0, "%s<-%s: ERR! CP_CRASH_EXIT\n", ld->name, mc->name);
+		mif_err("%s<-%s: ERR! CP_CRASH_EXIT\n", ld->name, mc->name);
 
 #ifdef DEBUG_MODEM_IF
 	if (!atomic_read(&mld->forced_cp_crash))
@@ -496,10 +496,6 @@ static int tx_frames_to_dev(struct mem_link_device *mld,
 
 	while (1) {
 		struct sk_buff *skb;
-#ifdef DEBUG_MODEM_IF_LINK_TX
-		u8 *hdr;
-		u8 ch;
-#endif
 
 		skb = skb_dequeue(skb_txq);
 		if (unlikely(!skb))
@@ -516,9 +512,7 @@ static int tx_frames_to_dev(struct mem_link_device *mld,
 		tx_bytes += ret;
 
 #ifdef DEBUG_MODEM_IF_LINK_TX
-		hdr = skbpriv(skb)->lnk_hdr ? skb->data : NULL;
-		ch = skbpriv(skb)->sipc_ch;
-		log_ipc_pkt(ch, LINK, TX, skb, hdr);
+		mif_pkt(skbpriv(skb)->sipc_ch, "LNK-TX", skb);
 #endif
 
 		dev_kfree_skb_any(skb);
@@ -680,7 +674,9 @@ static int tx_frames_to_rb(struct sbd_ring_buffer *rb)
 		}
 
 		tx_bytes += ret;
-		log_ipc_pkt(rb->ch, LINK, TX, skb, NULL);
+#ifdef DEBUG_MODEM_IF_LINK_TX
+		mif_pkt(rb->ch, "LNK-TX", skb);
+#endif
 		dev_kfree_skb_any(skb);
 	}
 
@@ -962,7 +958,7 @@ static int xmit_udl(struct mem_link_device *mld, struct io_device *iod,
 	}
 
 #ifdef DEBUG_MODEM_IF_LINK_TX
-	log_ipc_pkt(ch, LINK, TX, skb, skb->data);
+	mif_pkt(ch, "LNK-TX", skb);
 #endif
 
 	dev_kfree_skb_any(skb);
@@ -981,9 +977,6 @@ static void pass_skb_to_demux(struct mem_link_device *mld, struct sk_buff *skb)
 	struct io_device *iod = skbpriv(skb)->iod;
 	int ret;
 	u8 ch = skbpriv(skb)->sipc_ch;
-#ifdef DEBUG_MODEM_IF_LINK_RX
-	u8 *hdr;
-#endif
 
 	if (unlikely(!iod)) {
 		mif_err("%s: ERR! No IOD for CH.%d\n", ld->name, ch);
@@ -993,8 +986,7 @@ static void pass_skb_to_demux(struct mem_link_device *mld, struct sk_buff *skb)
 	}
 
 #ifdef DEBUG_MODEM_IF_LINK_RX
-	hdr = skbpriv(skb)->lnk_hdr ? skb->data : NULL;
-	log_ipc_pkt(ch, LINK, RX, skb, hdr);
+	mif_pkt(ch, "LNK-RX", skb);
 #endif
 
 	ret = iod->recv_skb_single(iod, ld, skb);
@@ -1103,8 +1095,8 @@ static struct sk_buff *rxq_read(struct mem_link_device *mld,
 	return skb;
 
 bad_msg:
-	evt_log(0, "%s: %s%s%s: ERR! BAD MSG: %02x %02x %02x %02x\n",
-		FUNC, ld->name, arrow(RX), ld->mc->name,
+	mif_err("%s%s%s: ERR! BAD MSG: %02x %02x %02x %02x\n",
+		ld->name, arrow(RX), ld->mc->name,
 		hdr[0], hdr[1], hdr[2], hdr[3]);
 	set_rxq_tail(dev, in);	/* Reset tail (out) pointer */
 	shmem_forced_cp_crash(mld);
@@ -1222,7 +1214,9 @@ static void pass_skb_to_net(struct mem_link_device *mld, struct sk_buff *skb)
 		return;
 	}
 
-	log_ipc_pkt(iod->id, LINK, RX, skb, NULL);
+#ifdef DEBUG_MODEM_IF_LINK_RX
+	mif_pkt(iod->id, "LNK-RX", skb);
+#endif
 
 	ret = iod->recv_net_skb(iod, ld, skb);
 	if (unlikely(ret < 0)) {

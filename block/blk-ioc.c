@@ -250,6 +250,7 @@ int create_task_io_context(struct task_struct *task, gfp_t gfp_flags, int node)
 	INIT_RADIX_TREE(&ioc->icq_tree, GFP_ATOMIC | __GFP_HIGH);
 	INIT_HLIST_HEAD(&ioc->icq_list);
 	INIT_WORK(&ioc->release_work, ioc_release_fn);
+	ioc->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 7); // set as idle,7 for all proces
 
 	/*
 	 * Try to install.  ioc shouldn't be installed if someone else

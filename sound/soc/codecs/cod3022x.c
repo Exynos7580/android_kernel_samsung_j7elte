@@ -1238,7 +1238,7 @@ static int cod3022x_hp_playback_init(struct snd_soc_codec *codec)
 	if((mcq_on & MQS_MODE_MASK) == MQS_MODE_MASK)
 		ctrl_hps |= (CTMI_HP_4_UA << CTMI_HP_A_SHIFT);
 	else
-		ctrl_hps |= (CTMI_HP_2_UA << CTMI_HP_A_SHIFT);
+		ctrl_hps |= (CTMI_HP_3_UA << CTMI_HP_A_SHIFT);
 
 	snd_soc_write(codec, COD3022X_DB_CTRL_HPS, ctrl_hps);
 
@@ -2127,7 +2127,7 @@ static int cod3022x_dai_hw_params(struct snd_pcm_substream *substream,
 		} else if (cod3022x->aifrate == COD3022X_SAMPLE_RATE_192KHZ) {
 			snd_soc_update_bits(codec, COD3022X_53_MQS,
 					MQS_MODE_MASK, 0);
-			hp_current_val = CTMI_HP_2_UA;
+			hp_current_val = CTMI_HP_3_UA;
 			cod3022x_sys_reset(codec);
 		}
 
