@@ -23,6 +23,13 @@ shift
 SRCDIR="$1"
 shift
 
+# Mac OS X check
+hoster=`uname`
+SED=sed
+if [ $hoster == "Darwin" ]; then
+	SED=gsed
+fi
+
 # Iterate through files listed on command line
 
 FILE=
@@ -30,7 +37,7 @@ trap 'rm -f "$OUTDIR/$FILE" "$OUTDIR/$FILE.sed"' EXIT
 for i in "$@"
 do
 	FILE="$(basename "$i")"
-	sed -r \
+	$SED -r \
 		-e 's/([ \t(])(__user|__force|__iomem)[ \t]/\1/g' \
 		-e 's/__attribute_const__([ \t]|$)/\1/g' \
 		-e 's@^#include <linux/compiler.h>@@' \
