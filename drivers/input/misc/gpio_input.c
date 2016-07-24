@@ -13,6 +13,7 @@
  *
  */
 
+#include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/gpio.h>
 #include <linux/gpio_event.h>
@@ -368,8 +369,16 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 	if (ds->use_irq) {
 		for (i = di->keymap_size - 1; i >= 0; i--) {
 			int irq = gpio_to_irq(di->keymap[i].gpio);
+			struct irq_desc *desc = irq_to_desc(irq);
+
 			if (ds->info->info.no_suspend)
 				disable_irq_wake(irq);
+
+			while (irqd_irq_inprogress(&desc->irq_data))
+			{
+				spin_unlock_irqrestore(&ds->irq_lock, irqflags);
+				spin_lock_irqsave(&ds->irq_lock, irqflags);
+			}
 			free_irq(irq, &ds->key_state[i]);
 		}
 	}

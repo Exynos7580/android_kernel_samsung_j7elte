@@ -94,6 +94,10 @@ static int hid_start_in(struct hid_device *hid)
 		} else {
 			clear_bit(HID_NO_BANDWIDTH, &usbhid->iofl);
 		}
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		usbhid->in_err_isr = 0;
+		hid_info(hid, "%s submit urb rc=%d\n", __func__, rc);
+#endif
 	}
 	spin_unlock_irqrestore(&usbhid->lock, flags);
 	return rc;
@@ -292,9 +296,25 @@ static void hid_irq_in(struct urb *urb)
 	case 0:			/* success */
 		usbhid_mark_busy(usbhid);
 		usbhid->retry_delay = 0;
-		hid_input_report(urb->context, HID_INPUT_REPORT,
+		status = hid_input_report(urb->context, HID_INPUT_REPORT,
 				 urb->transfer_buffer,
 				 urb->actual_length, 1);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		if (status == 0) {
+			if (usbhid->in_err_isr) {
+				usbhid->in_err_isr = 0;
+				hid_info(urb->dev,
+				"usbhid: %s: recover report\n", __func__);
+			}
+		} else {
+			usbhid->in_err_isr++;
+			if (usbhid->in_err_isr < 5)
+				hid_err(urb->dev,
+				"usbhid: %s: err=%d err_isr=%lu length=%d\n",
+				__func__, status, usbhid->in_err_isr
+					,urb->actual_length);
+		}
+#endif
 		/*
 		 * autosuspend refused while keys are pressed
 		 * because most keyboards don't wake up when
@@ -306,6 +326,9 @@ static void hid_irq_in(struct urb *urb)
 			clear_bit(HID_KEYS_PRESSED, &usbhid->iofl);
 		break;
 	case -EPIPE:		/* stall */
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		hid_err(urb->dev, "usbhid: %s: stall\n", __func__);
+#endif
 		usbhid_mark_busy(usbhid);
 		clear_bit(HID_IN_RUNNING, &usbhid->iofl);
 		set_bit(HID_CLEAR_HALT, &usbhid->iofl);
@@ -314,12 +337,20 @@ static void hid_irq_in(struct urb *urb)
 	case -ECONNRESET:	/* unlink */
 	case -ENOENT:
 	case -ESHUTDOWN:	/* unplug */
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		hid_err(urb->dev, "usbhid: %s: unlink %d\n",
+					__func__, urb->status);
+#endif
 		clear_bit(HID_IN_RUNNING, &usbhid->iofl);
 		return;
 	case -EILSEQ:		/* protocol error or unplug */
 	case -EPROTO:		/* protocol error or unplug */
 	case -ETIME:		/* protocol error or unplug */
 	case -ETIMEDOUT:	/* Should never happen, but... */
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+		hid_err(urb->dev, "usbhid: %s: protocol error %d\n",
+					__func__, urb->status);
+#endif
 		usbhid_mark_busy(usbhid);
 		clear_bit(HID_IN_RUNNING, &usbhid->iofl);
 		hid_io_error(hid);
@@ -535,7 +566,6 @@ static void __usbhid_submit_report(struct hid_device *hid, struct hid_report *re
 {
 	int head;
 	struct usbhid_device *usbhid = hid->driver_data;
-	int len = ((report->size - 1) >> 3) + 1 + (report->id > 0);
 
 	if ((hid->quirks & HID_QUIRK_NOGET) && dir == USB_DIR_IN)
 		return;
@@ -546,7 +576,7 @@ static void __usbhid_submit_report(struct hid_device *hid, struct hid_report *re
 			return;
 		}
 
-		usbhid->out[usbhid->outhead].raw_report = kmalloc(len, GFP_ATOMIC);
+		usbhid->out[usbhid->outhead].raw_report = hid_alloc_report_buf(report, GFP_ATOMIC);
 		if (!usbhid->out[usbhid->outhead].raw_report) {
 			hid_warn(hid, "output queueing failed\n");
 			return;
@@ -595,7 +625,7 @@ static void __usbhid_submit_report(struct hid_device *hid, struct hid_report *re
 	}
 
 	if (dir == USB_DIR_OUT) {
-		usbhid->ctrl[usbhid->ctrlhead].raw_report = kmalloc(len, GFP_ATOMIC);
+		usbhid->ctrl[usbhid->ctrlhead].raw_report = hid_alloc_report_buf(report, GFP_ATOMIC);
 		if (!usbhid->ctrl[usbhid->ctrlhead].raw_report) {
 			hid_warn(hid, "control queueing failed\n");
 			return;
@@ -748,6 +778,9 @@ int usbhid_open(struct hid_device *hid)
 	struct usbhid_device *usbhid = hid->driver_data;
 	int res = 0;
 
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	hid_info(hid, "%s hid->open %d\n", __func__, hid->open);
+#endif
 	mutex_lock(&hid_open_mut);
 	if (!hid->open++) {
 		res = usb_autopm_get_interface(usbhid->intf);
@@ -774,6 +807,10 @@ int usbhid_open(struct hid_device *hid)
 	}
 done:
 	mutex_unlock(&hid_open_mut);
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	if (res < 0)
+		hid_err(hid, "%s error res %d\n", __func__, res);
+#endif
 	return res;
 }
 

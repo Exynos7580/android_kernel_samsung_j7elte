@@ -269,6 +269,13 @@ config WIFI_CONTROL_FUNC
 	help
 	  Enables Power/Reset/Carddetect function abstraction
 
+config BROADCOM_WIFI
+	bool "Broadcom WiFi Driver"
+	depends on WLAN
+	default y
+	---help---
+	  This is a configuration for broadcom WLAN driver.
+
 source "drivers/net/wireless/ath/Kconfig"
 source "drivers/net/wireless/b43/Kconfig"
 source "drivers/net/wireless/b43legacy/Kconfig"
@@ -285,5 +292,6 @@ source "drivers/net/wireless/rtlwifi/Kconfig"
 source "drivers/net/wireless/ti/Kconfig"
 source "drivers/net/wireless/zd1211rw/Kconfig"
 source "drivers/net/wireless/mwifiex/Kconfig"
+source "drivers/net/wireless/bcmdhd/Kconfig"
 
 endif # WLAN

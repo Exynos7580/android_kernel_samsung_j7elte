@@ -131,7 +131,7 @@ static const struct regulator_desc arizona_ldo1_hc = {
 	.min_uV = 900000,
 	.uV_step = 50000,
 	.n_voltages = 8,
-	.enable_time = 1500,
+	.enable_time = 3000,
 
 	.owner = THIS_MODULE,
 };
@@ -141,8 +141,6 @@ static struct regulator_ops arizona_ldo1_ops = {
 	.map_voltage = regulator_map_voltage_linear,
 	.get_voltage_sel = regulator_get_voltage_sel_regmap,
 	.set_voltage_sel = regulator_set_voltage_sel_regmap,
-	.get_bypass = regulator_get_bypass_regmap,
-	.set_bypass = regulator_set_bypass_regmap,
 };
 
 static const struct regulator_desc arizona_ldo1 = {

@@ -126,18 +126,9 @@ static void mmc_bus_shutdown(struct device *dev)
 {
 	struct mmc_driver *drv = to_mmc_driver(dev->driver);
 	struct mmc_card *card = mmc_dev_to_card(dev);
-	struct mmc_host *host = card->host;
-	int ret;
 
 	if (dev->driver && drv->shutdown)
 		drv->shutdown(card);
-
-	if (host->bus_ops->shutdown) {
-		ret = host->bus_ops->shutdown(host);
-		if (ret)
-			pr_warn("%s: error %d during shutdown\n",
-				mmc_hostname(host), ret);
-	}
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -328,10 +319,11 @@ int mmc_add_card(struct mmc_card *card)
 			mmc_card_ddr_mode(card) ? "DDR " : "",
 			type);
 	} else {
-		pr_info("%s: new %s%s%s%s%s card at address %04x\n",
+		pr_info("%s: new %s%s%s%s%s%s card at address %04x\n",
 			mmc_hostname(card->host),
 			mmc_card_uhs(card) ? "ultra high speed " :
 			(mmc_card_highspeed(card) ? "high speed " : ""),
+			mmc_card_hs200_ddr(card) ? "HS200-DDR " : "",
 			(mmc_card_hs200(card) ? "HS200 " : ""),
 			mmc_card_ddr_mode(card) ? "DDR " : "",
 			uhs_bus_speed_mode, type, card->rca);

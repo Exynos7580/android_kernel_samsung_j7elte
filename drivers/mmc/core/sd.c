@@ -25,6 +25,12 @@
 #include "sd.h"
 #include "sd_ops.h"
 
+#ifdef CONFIG_MMC_SUPPORT_STLOG
+#include <linux/stlog.h>
+#else
+#define ST_LOG(fmt,...)
+#endif
+
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -646,12 +652,28 @@ static int mmc_sd_init_uhs_card(struct mmc_card *card)
 	if (err)
 		goto out;
 
+try:
 	/* SPI mode doesn't define CMD19 */
 	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning) {
+		card->host->tuning_progress |= MMC_HS200_TUNING;
 		mmc_host_clk_hold(card->host);
 		err = card->host->ops->execute_tuning(card->host,
 						      MMC_SEND_TUNING_BLOCK);
 		mmc_host_clk_release(card->host);
+		card->host->tuning_progress = 0;
+	}
+
+	if (err) {
+		if (card->sw_caps.uhs_max_dtr == UHS_SDR104_MAX_DTR)
+			card->sw_caps.uhs_max_dtr = UHS_SDR50_MAX_DTR;
+		else if (card->sw_caps.uhs_max_dtr == UHS_SDR50_MAX_DTR)
+			card->sw_caps.uhs_max_dtr = UHS_SDR25_MAX_DTR;
+		else if (card->sw_caps.uhs_max_dtr == UHS_SDR25_MAX_DTR)
+			card->sw_caps.uhs_max_dtr = UHS_SDR12_MAX_DTR;
+		else
+			goto out;
+		mmc_set_clock(card->host, card->sw_caps.uhs_max_dtr);
+		goto try;
 	}
 
 out:
@@ -932,6 +954,9 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 
+	/* The initialization should be done at 3.3 V I/O voltage. */
+	__mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_330);
+
 	err = mmc_sd_get_cid(host, ocr, cid, &rocr);
 	if (err)
 		return err;
@@ -1020,6 +1045,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	}
 
 	host->card = card;
+	ST_LOG("<%s> %s: card init succeed\n", __func__,mmc_hostname(host));
 	return 0;
 
 free_card:
@@ -1046,7 +1072,7 @@ static void mmc_sd_remove(struct mmc_host *host)
  */
 static int mmc_sd_alive(struct mmc_host *host)
 {
-	return mmc_send_status(host->card, NULL);
+	return mmc_send_status(host->card, NULL, 0);
 }
 
 /*
@@ -1069,7 +1095,7 @@ static void mmc_sd_detect(struct mmc_host *host)
 	 */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	while(retries) {
-		err = mmc_send_status(host->card, NULL);
+		err = mmc_send_status(host->card, NULL, 0);
 		if (err) {
 			retries--;
 			udelay(5);
@@ -1174,7 +1200,6 @@ static const struct mmc_bus_ops mmc_sd_ops = {
 	.resume = NULL,
 	.power_restore = mmc_sd_power_restore,
 	.alive = mmc_sd_alive,
-	.shutdown = mmc_sd_suspend,
 };
 
 static const struct mmc_bus_ops mmc_sd_ops_unsafe = {
@@ -1184,7 +1209,6 @@ static const struct mmc_bus_ops mmc_sd_ops_unsafe = {
 	.resume = mmc_sd_resume,
 	.power_restore = mmc_sd_power_restore,
 	.alive = mmc_sd_alive,
-	.shutdown = mmc_sd_suspend,
 };
 
 static void mmc_sd_attach_bus_ops(struct mmc_host *host)

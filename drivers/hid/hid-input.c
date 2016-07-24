@@ -340,7 +340,7 @@ static int hidinput_get_battery_property(struct power_supply *psy,
 {
 	struct hid_device *dev = container_of(psy, struct hid_device, battery);
 	int ret = 0;
-	__u8 buf[2] = {};
+	__u8 *buf;
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -349,13 +349,20 @@ static int hidinput_get_battery_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_CAPACITY:
+
+		buf = kmalloc(2 * sizeof(__u8), GFP_KERNEL);
+		if (!buf) {
+			ret = -ENOMEM;
+			break;
+		}
 		ret = dev->hid_get_raw_report(dev, dev->battery_report_id,
-					      buf, sizeof(buf),
+					      buf, 2,
 					      dev->battery_report_type);
 
 		if (ret != 2) {
 			if (ret >= 0)
 				ret = -EINVAL;
+			kfree(buf);
 			break;
 		}
 
@@ -364,6 +371,7 @@ static int hidinput_get_battery_property(struct power_supply *psy,
 		    buf[1] <= dev->battery_max)
 			val->intval = (100 * (buf[1] - dev->battery_min)) /
 				(dev->battery_max - dev->battery_min);
+		kfree(buf);
 		break;
 
 	case POWER_SUPPLY_PROP_MODEL_NAME:
@@ -903,6 +911,17 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		default: goto ignore;
 		}
 		break;
+
+#ifdef CONFIG_USB_HMT_SAMSUNG_INPUT
+	case HID_UP_HMTVENDOR:
+		switch (usage->hid & HID_USAGE) {
+		case 0x001: map_key_clear(KEY_START_NOTA_CMD);		break;
+		case 0x002: map_key_clear(KEY_START_TA_CMD);		break;
+		case 0x003: map_key_clear(KEY_ONGOING_TA_CMD);		break;
+		default: goto ignore;
+		}
+		break;
+#endif
 
 	default:
 	unknown:
