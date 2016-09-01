@@ -30,6 +30,14 @@
 #include <linux/io.h>
 #include <linux/aio.h>
 
+#ifdef CONFIG_KNOX_KAP
+#include <linux/knox_kap.h>
+#endif
+
+#ifdef CONFIG_MST_LDO
+#include <linux/mst_ctrl.h>
+#endif
+
 #include <asm/uaccess.h>
 
 #ifdef CONFIG_IA64
@@ -885,6 +893,12 @@ static const struct memdev {
 #endif
 #ifdef CONFIG_CRASH_DUMP
 	[12] = { "oldmem", 0, &oldmem_fops, NULL },
+#endif
+#ifdef CONFIG_KNOX_KAP
+	[13] = { "knox_kap", 0666, &knox_kap_fops, NULL },
+#endif
+#ifdef CONFIG_MST_LDO
+	[14] = { "mst_ctrl", 0666, &mst_ctrl_fops, NULL },
 #endif
 };
 

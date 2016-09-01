@@ -742,6 +742,22 @@ static int check_ctrlrecip(struct dev_state *ps, unsigned int requesttype,
 		if ((index & ~USB_DIR_IN) == 0)
 			return 0;
 		ret = findintfep(ps->dev, index);
+		if (ret < 0) {
+			/*
+			 * Some not fully compliant Win apps seem to get
+			 * index wrong and have the endpoint number here
+			 * rather than the endpoint address (with the
+			 * correct direction). Win does let this through,
+			 * so we'll not reject it here but leave it to
+			 * the device to not break KVM. But we warn.
+			 */
+			ret = findintfep(ps->dev, index ^ 0x80);
+			if (ret >= 0)
+				dev_info(&ps->dev->dev,
+					"%s: process %i (%s) requesting ep %02x but needs %02x\n",
+					__func__, task_pid_nr(current),
+					current->comm, index, index ^ 0x80);
+		}
 		if (ret >= 0)
 			ret = checkintf(ps, ret);
 		break;
@@ -2151,13 +2167,93 @@ static long usbdev_do_ioctl(struct file *file, unsigned int cmd,
 	return ret;
 }
 
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+static int usbdev_log(unsigned int cmd, int ret)
+{
+	char *cmd_string;
+	switch (cmd) {
+	case USBDEVFS_CONTROL:
+		cmd_string = "CONTROL";
+		break;
+	case USBDEVFS_BULK:
+		cmd_string = "BULK";
+		break;
+	case USBDEVFS_RESETEP:
+		cmd_string = "RESETEP";
+		break;
+	case USBDEVFS_RESET:
+		cmd_string = "RESET";
+		break;
+	case USBDEVFS_CLEAR_HALT:
+		cmd_string = "CLEAR_HALT";
+		break;
+	case USBDEVFS_GETDRIVER:
+		cmd_string = "GETDRIVER";
+		break;
+	case USBDEVFS_CONNECTINFO:
+		cmd_string = "CONNECTINFO";
+		break;
+	case USBDEVFS_SETINTERFACE:
+		cmd_string = "SETINTERFACE";
+		break;
+	case USBDEVFS_SETCONFIGURATION:
+		cmd_string = "SETCONFIGURATION";
+		break;
+	case USBDEVFS_SUBMITURB:
+		cmd_string = "SUBMITURB";
+		break;
+	case USBDEVFS_DISCARDURB:
+		cmd_string = "DISCARDURB";
+		break;
+	case USBDEVFS_REAPURB:
+		cmd_string = "REAPURB";
+		break;
+	case USBDEVFS_REAPURBNDELAY:
+		cmd_string = "REAPURBNDELAY";
+		break;
+	case USBDEVFS_DISCSIGNAL:
+		cmd_string = "DISCSIGNAL";
+		break;
+	case USBDEVFS_CLAIMINTERFACE:
+		cmd_string = "CLAIMINTERFACE";
+		break;
+	case USBDEVFS_RELEASEINTERFACE:
+		cmd_string = "RELEASEINTERFACE";
+		break;
+	case USBDEVFS_IOCTL:
+		cmd_string = "IOCTL";
+		break;
+	case USBDEVFS_CLAIM_PORT:
+		cmd_string = "CLAIM_PORT";
+		break;
+	case USBDEVFS_RELEASE_PORT:
+		cmd_string = "RELEASE_PORT";
+		break;
+	case USBDEVFS_GET_CAPABILITIES:
+		cmd_string = "GET_CAPABILITIES";
+		break;
+	case USBDEVFS_DISCONNECT_CLAIM:
+		cmd_string = "DISCONNECT_CLAIM";
+		break;
+	default:
+		cmd_string = "DEFAULT";
+		break;
+	}
+	printk(KERN_ERR "%s: %s error ret=%d\n", __func__, cmd_string, ret);
+	return 0;
+}
+#endif
+
 static long usbdev_ioctl(struct file *file, unsigned int cmd,
 			unsigned long arg)
 {
 	int ret;
 
 	ret = usbdev_do_ioctl(file, cmd, (void __user *)arg);
-
+#ifdef CONFIG_USB_DEBUG_DETAILED_LOG
+	if (ret < 0)
+		usbdev_log(cmd, ret);
+#endif
 	return ret;
 }
 

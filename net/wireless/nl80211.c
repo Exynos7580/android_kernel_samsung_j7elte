@@ -5315,7 +5315,6 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 	enum ieee80211_band band;
 	size_t ie_len;
 	struct nlattr *tb[NL80211_SCHED_SCAN_MATCH_ATTR_MAX + 1];
-	s32 default_match_rssi = NL80211_SCAN_RSSI_THOLD_OFF;
 
 	if (!(rdev->wiphy.flags & WIPHY_FLAG_SUPPORTS_SCHED_SCAN) ||
 	    !rdev->ops->sched_scan_start)
@@ -5354,40 +5353,11 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 	if (n_ssids > wiphy->max_sched_scan_ssids)
 		return -EINVAL;
 
-	/*
-	 * First, count the number of 'real' matchsets. Due to an issue with
-	 * the old implementation, matchsets containing only the RSSI attribute
-	 * (NL80211_SCHED_SCAN_MATCH_ATTR_RSSI) are considered as the 'default'
-	 * RSSI for all matchsets, rather than their own matchset for reporting
-	 * all APs with a strong RSSI. This is needed to be compatible with
-	 * older userspace that treated a matchset with only the RSSI as the
-	 * global RSSI for all other matchsets - if there are other matchsets.
-	 */
-	if (info->attrs[NL80211_ATTR_SCHED_SCAN_MATCH]) {
+	if (info->attrs[NL80211_ATTR_SCHED_SCAN_MATCH])
 		nla_for_each_nested(attr,
 				    info->attrs[NL80211_ATTR_SCHED_SCAN_MATCH],
-				    tmp) {
-			struct nlattr *rssi;
-
-			err = nla_parse(tb, NL80211_SCHED_SCAN_MATCH_ATTR_MAX,
-					nla_data(attr), nla_len(attr),
-					nl80211_match_policy);
-			if (err)
-				return err;
-			/* add other standalone attributes here */
-			if (tb[NL80211_SCHED_SCAN_MATCH_ATTR_SSID]) {
-				n_match_sets++;
-				continue;
-			}
-			rssi = tb[NL80211_SCHED_SCAN_MATCH_ATTR_RSSI];
-			if (rssi)
-				default_match_rssi = nla_get_s32(rssi);
-		}
-	}
-
-	/* However, if there's no other matchset, add the RSSI one */
-	if (!n_match_sets && default_match_rssi != NL80211_SCAN_RSSI_THOLD_OFF)
-		n_match_sets = 1;
+				    tmp)
+			n_match_sets++;
 
 	if (n_match_sets > wiphy->max_match_sets)
 		return -EINVAL;
@@ -5515,15 +5485,6 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 				  nl80211_match_policy);
 			ssid = tb[NL80211_SCHED_SCAN_MATCH_ATTR_SSID];
 			if (ssid) {
-				if (WARN_ON(i >= n_match_sets)) {
-					/* this indicates a programming error,
-					 * the loop above should have verified
-					 * things properly
-					 */
-					err = -EINVAL;
-					goto out_free;
-				}
-
 				if (nla_len(ssid) > IEEE80211_MAX_SSID_LEN) {
 					err = -EINVAL;
 					goto out_free;
@@ -5532,31 +5493,16 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 				       nla_data(ssid), nla_len(ssid));
 				request->match_sets[i].ssid.ssid_len =
 					nla_len(ssid);
-				/* special attribute - old implemenation w/a */
-				request->match_sets[i].rssi_thold =
-					default_match_rssi;
-				rssi = tb[NL80211_SCHED_SCAN_MATCH_ATTR_RSSI];
-				if (rssi)
-					request->match_sets[i].rssi_thold =
-						nla_get_s32(rssi);
 			}
+			rssi = tb[NL80211_SCHED_SCAN_MATCH_ATTR_RSSI];
+			if (rssi)
+				request->rssi_thold = nla_get_u32(rssi);
+			else
+				request->rssi_thold =
+						   NL80211_SCAN_RSSI_THOLD_OFF;
 			i++;
 		}
-
-		/* there was no other matchset, so the RSSI one is alone */
-		if (i == 0)
-			request->match_sets[0].rssi_thold = default_match_rssi;
-
-		request->min_rssi_thold = INT_MAX;
-		for (i = 0; i < n_match_sets; i++)
-			request->min_rssi_thold =
-				min(request->match_sets[i].rssi_thold,
-				    request->min_rssi_thold);
-	} else {
-		request->min_rssi_thold = NL80211_SCAN_RSSI_THOLD_OFF;
 	}
-
-	request->rssi_thold = request->min_rssi_thold;
 
 	if (info->attrs[NL80211_ATTR_IE]) {
 		request->ie_len = nla_len(info->attrs[NL80211_ATTR_IE]);
@@ -5930,7 +5876,9 @@ static int nl80211_dump_survey(struct sk_buff *skb,
 static bool nl80211_valid_wpa_versions(u32 wpa_versions)
 {
 	return !(wpa_versions & ~(NL80211_WPA_VERSION_1 |
-				  NL80211_WPA_VERSION_2));
+				  NL80211_WPA_VERSION_2 |
+/*WAPI*/
+				  NL80211_WAPI_VERSION_1 ));
 }
 
 static int nl80211_authenticate(struct sk_buff *skb, struct genl_info *info)
@@ -6696,6 +6644,9 @@ void __cfg80211_send_event_skb(struct sk_buff *skb, gfp_t gfp)
 	void *hdr = ((void **)skb->cb)[1];
 	struct nlattr *data = ((void **)skb->cb)[2];
 
+	/* clear CB data for netlink core to own from now on */
+	memset(skb->cb, 0, sizeof(skb->cb));
+
 	nla_nest_end(skb, data);
 	genlmsg_end(skb, hdr);
 
@@ -7292,7 +7243,16 @@ static int nl80211_tx_mgmt(struct sk_buff *skb, struct genl_info *info)
 		 * of time (10ms) but no longer than the driver supports.
 		 */
 		if (wait < NL80211_MIN_REMAIN_ON_CHANNEL_TIME ||
+#if defined(CONFIG_BROADCOM_WIFI)
+			/* To reduce GAS initial request / response time, 
+			 * we modified the Broadcom official driver structure 
+			 * ex) wait[31:25] -> retry counts until receiving ACK 
+			 *     wait[24:0] -> wait time
+			 */
+			(wait & 0x00ffffff) > rdev->wiphy.max_remain_on_channel_duration)
+#else
 		    wait > rdev->wiphy.max_remain_on_channel_duration)
+#endif
 			return -EINVAL;
 
 	}
@@ -10246,7 +10206,8 @@ void cfg80211_mgmt_tx_status(struct wireless_dev *wdev, u64 cookie,
 
 	genlmsg_end(msg, hdr);
 
-	genlmsg_multicast(msg, 0, nl80211_mlme_mcgrp.id, gfp);
+	genlmsg_multicast_netns(wiphy_net(&rdev->wiphy), msg, 0,
+				nl80211_mlme_mcgrp.id, gfp);
 	return;
 
  nla_put_failure:

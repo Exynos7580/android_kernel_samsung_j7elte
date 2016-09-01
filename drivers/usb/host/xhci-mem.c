@@ -24,6 +24,7 @@
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/dmapool.h>
+#include <linux/dma-mapping.h>
 
 #include "xhci.h"
 
@@ -369,6 +370,10 @@ static struct xhci_container_ctx *xhci_alloc_container_ctx(struct xhci_hcd *xhci
 		ctx->size += CTX_SIZE(xhci->hcc_params);
 
 	ctx->bytes = dma_pool_alloc(xhci->device_pool, flags, &ctx->dma);
+	if (!ctx->bytes) {
+		kfree(ctx);
+		return NULL;
+	}
 	memset(ctx->bytes, 0, ctx->size);
 	return ctx;
 }
@@ -1788,6 +1793,16 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 			&xhci->cancel_cmd_list, cancel_cmd_list) {
 		list_del(&cur_cd->cancel_cmd_list);
 		kfree(cur_cd);
+	}
+
+	num_ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	for (i = 0; i < num_ports && xhci->rh_bw; i++) {
+		struct xhci_interval_bw_table *bwt = &xhci->rh_bw[i].bw_table;
+		for (j = 0; j < XHCI_MAX_INTERVAL; j++) {
+			struct list_head *ep = &bwt->interval_bw[j].endpoints;
+			while (!list_empty(ep))
+				list_del_init(ep->next);
+		}
 	}
 
 	for (i = 1; i < MAX_HC_SLOTS; ++i)

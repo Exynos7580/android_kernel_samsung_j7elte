@@ -25,6 +25,7 @@
 #include <linux/smp.h>
 #include <linux/smpboot.h>
 #include <linux/tick.h>
+#include <linux/exynos-ss.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
@@ -250,7 +251,9 @@ restart:
 			kstat_incr_softirqs_this_cpu(vec_nr);
 
 			trace_softirq_entry(vec_nr);
+			exynos_ss_irq(ESS_FLAG_SOFTIRQ, h->action, irqs_disabled(), ESS_FLAG_IN);
 			h->action(h);
+			exynos_ss_irq(ESS_FLAG_SOFTIRQ, h->action, irqs_disabled(), ESS_FLAG_OUT);
 			trace_softirq_exit(vec_nr);
 			if (unlikely(prev_count != preempt_count())) {
 				printk(KERN_ERR "huh, entered softirq %u %s %p"
@@ -330,10 +333,19 @@ void irq_enter(void)
 
 static inline void invoke_softirq(void)
 {
-	if (!force_irqthreads)
-		__do_softirq();
-	else
+	if (!force_irqthreads) {
+		/*
+		 * We can safely execute softirq on the current stack if
+		 * it is the irq stack, because it should be near empty
+		 * at this stage. But we have no way to know if the arch
+		 * calls irq_exit() on the irq stack. So call softirq
+		 * in its own stack to prevent from any overrun on top
+		 * of a potentially deep task stack.
+		 */
+		do_softirq();
+	} else {
 		wakeup_softirqd();
+	}
 }
 
 static inline void tick_irq_exit(void)
@@ -480,7 +492,11 @@ static void tasklet_action(struct softirq_action *a)
 			if (!atomic_read(&t->count)) {
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 					BUG();
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_TASKLET,
+							t->func, irqs_disabled(), ESS_FLAG_IN);
 				t->func(t->data);
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_TASKLET,
+							t->func, irqs_disabled(), ESS_FLAG_OUT);
 				tasklet_unlock(t);
 				continue;
 			}
@@ -515,7 +531,11 @@ static void tasklet_hi_action(struct softirq_action *a)
 			if (!atomic_read(&t->count)) {
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 					BUG();
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_HI_TASKLET,
+							t->func, irqs_disabled(), ESS_FLAG_IN);
 				t->func(t->data);
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_HI_TASKLET,
+							t->func, irqs_disabled(), ESS_FLAG_OUT);
 				tasklet_unlock(t);
 				continue;
 			}

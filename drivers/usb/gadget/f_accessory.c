@@ -284,6 +284,13 @@ static void acc_complete_out(struct usb_ep *ep, struct usb_request *req)
 	wake_up(&dev->read_wq);
 }
 
+static void acc_ctrlrequest_complete(struct usb_ep *ep, struct usb_request *req)
+{
+	if (req->status != 0) {
+		pr_err("acc_ctrlrequest_complete, err %d\n", req->status);
+	}
+}
+
 static void acc_complete_set_string(struct usb_ep *ep, struct usb_request *req)
 {
 	struct acc_dev	*dev = ep->driver_data;
@@ -759,12 +766,24 @@ static int acc_release(struct inode *ip, struct file *fp)
 	return 0;
 }
 
+/* for 64bit kernel & 32bit platform */
+#ifdef CONFIG_COMPAT
+static long acc_compat_ioctl(struct file *file,
+		unsigned int cmd, unsigned long arg)
+{
+	return acc_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
+}
+#endif
+
 /* file operations for /dev/usb_accessory */
 static const struct file_operations acc_fops = {
 	.owner = THIS_MODULE,
 	.read = acc_read,
 	.write = acc_write,
 	.unlocked_ioctl = acc_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl =   acc_compat_ioctl,
+#endif
 	.open = acc_open,
 	.release = acc_release,
 };
@@ -817,6 +836,7 @@ static int acc_ctrlrequest(struct usb_composite_dev *cdev,
 			b_requestType, b_request,
 			w_value, w_index, w_length);
 */
+	cdev->req->complete = acc_ctrlrequest_complete;
 
 	if (b_requestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {
 		if (b_request == ACCESSORY_START) {
@@ -950,10 +970,6 @@ kill_all_hid_devices(struct acc_dev *dev)
 	struct acc_hid_dev *hid;
 	struct list_head *entry, *temp;
 	unsigned long flags;
-
-	/* do nothing if usb accessory device doesn't exist */
-	if (!dev)
-		return;
 
 	spin_lock_irqsave(&dev->lock, flags);
 	list_for_each_safe(entry, temp, &dev->hid_list) {
