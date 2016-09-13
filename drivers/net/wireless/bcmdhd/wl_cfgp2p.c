@@ -1,7 +1,7 @@
 /*
  * Linux cfgp2p driver
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfgp2p.c 584255 2015-09-04 14:41:49Z $
+ * $Id: wl_cfgp2p.c 552896 2015-04-28 08:46:49Z $
  *
  */
 #include <typedefs.h>
@@ -1583,7 +1583,7 @@ wl_cfgp2p_listen_complete(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 	s32 ret = BCME_OK;
 	struct net_device *ndev = NULL;
 
-	if (!cfg || !cfg->p2p || !cfgdev)
+	if (!cfg || !cfg->p2p)
 		return BCME_ERROR;
 
 	CFGP2P_DBG((" Enter\n"));

@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for SDIO
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_sdio.c 604396 2015-12-07 06:50:33Z $
+ * $Id: dhd_sdio.c 557250 2015-05-18 08:52:07Z $
  */
 
 #include <typedefs.h>
@@ -173,10 +173,6 @@ DHD_SPINWAIT_SLEEP_INIT(sdioh_spinwait_sleep);
 DEFINE_MUTEX(_dhd_sdio_mutex_lock_);
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)) */
 #endif 
-
-#if defined(SUPPORT_MULTIPLE_BOARD_REV_FROM_HW)
-extern unsigned int system_hw_rev;
-#endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_HW */
 
 #ifdef DHD_DEBUG
 /* Device console log buffer state */
@@ -1249,7 +1245,6 @@ dhdsdio_htclk(dhd_bus_t *bus, bool on, bool pendok)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 			else if (ht_avail_error == HT_AVAIL_ERROR_MAX) {
-				bus->dhd->hang_reason = HANG_REASON_HT_AVAIL_ERROR;
 				dhd_os_send_hang_message(bus->dhd);
 			}
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27) */
@@ -1699,9 +1694,10 @@ dhd_bus_txdata(struct dhd_bus *bus, void *pkt)
 	int ret = BCME_ERROR;
 	osl_t *osh;
 	uint datalen, prec;
-#if defined(DHD_TX_DUMP)
+#if defined(DHD_TX_DUMP) || defined(DHD_8021X_DUMP)
 	uint8 *dump_data;
-#endif /* DHD_TX_DUMP */
+	uint16 protocol;
+#endif /* DHD_TX_DUMP || DHD_8021X_DUMP */
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -1724,9 +1720,18 @@ dhd_bus_txdata(struct dhd_bus *bus, void *pkt)
 	BCM_REFERENCE(datalen);
 #endif /* SDTEST */
 
-#if defined(DHD_TX_DUMP) && defined(DHD_TX_FULL_DUMP)
+#if defined(DHD_TX_DUMP) || defined(DHD_8021X_DUMP)
 	dump_data = PKTDATA(osh, pkt);
 	dump_data += 4; /* skip 4 bytes header */
+	protocol = (dump_data[12] << 8) | dump_data[13];
+
+	if (protocol == ETHER_TYPE_802_1X) {
+		DHD_ERROR(("ETHER_TYPE_802_1X [TX]: ver %d, type %d, replay %d\n",
+			dump_data[14], dump_data[15], dump_data[30]));
+	}
+#endif /* DHD_TX_DUMP || DHD_8021X_DUMP */
+
+#if defined(DHD_TX_DUMP) && defined(DHD_TX_FULL_DUMP)
 	{
 		int i;
 		DHD_ERROR(("TX DUMP\n"));
@@ -3267,10 +3272,6 @@ int
 dhdsdio_downloadvars(dhd_bus_t *bus, void *arg, int len)
 {
 	int bcmerror = BCME_OK;
-#ifdef KEEP_JP_REGREV
-	char *tmpbuf;
-	uint tmpidx;
-#endif /* KEEP_JP_REGREV */
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
@@ -3297,32 +3298,6 @@ dhdsdio_downloadvars(dhd_bus_t *bus, void *arg, int len)
 
 	/* Copy the passed variables, which should include the terminating double-null */
 	bcopy(arg, bus->vars, bus->varsz);
-
-#ifdef KEEP_JP_REGREV
-	if (bus->vars != NULL && bus->varsz > 0) {
-		char *pos = NULL;
-		tmpbuf = MALLOCZ(bus->dhd->osh, bus->varsz + 1);
-		if (tmpbuf == NULL) {
-			goto err;
-		}
-		memcpy(tmpbuf, bus->vars, bus->varsz);
-		for (tmpidx = 0; tmpidx < bus->varsz; tmpidx++) {
-			if (tmpbuf[tmpidx] == 0) {
-				tmpbuf[tmpidx] = '\n';
-			}
-		}
-		bus->dhd->vars_ccode[0] = 0;
-		bus->dhd->vars_regrev = 0;
-		if ((pos = strstr(tmpbuf, "ccode"))) {
-			sscanf(pos, "ccode=%s\n", bus->dhd->vars_ccode);
-		}
-		if ((pos = strstr(tmpbuf, "regrev"))) {
-			sscanf(pos, "regrev=%u\n", &(bus->dhd->vars_regrev));
-		}
-		MFREE(bus->dhd->osh, tmpbuf, bus->varsz + 1);
-	}
-#endif /* KEEP_JP_REGREV */
-
 err:
 	return bcmerror;
 }
@@ -9139,40 +9114,6 @@ static int concate_revision_bcm43341(dhd_bus_t *bus,
 	return 0;
 }
 
-#if !defined(MULTIPLE_CHIP_4345x)
-static int
-concate_revision_bcm43454(dhd_bus_t *bus,
-	char *fw_path, int fw_path_len, char *nv_path, int nv_path_len)
-{
-	char chipver_tag[10] = {0, };
-#ifdef SUPPORT_MULTIPLE_BOARD_REV_FROM_DT
-	int base_system_rev_for_nv = 0;
-#endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_DT */
-
-	DHD_TRACE(("%s: BCM43454 Multiple Revision Check\n", __FUNCTION__));
-	if (bus->sih->chip != BCM43454_CHIP_ID) {
-		DHD_ERROR(("%s:Chip is not BCM43454!\n", __FUNCTION__));
-		return -1;
-	}
-#ifdef SUPPORT_MULTIPLE_BOARD_REV_FROM_DT
-	base_system_rev_for_nv = dhd_get_system_rev();
-	if (base_system_rev_for_nv > 0) {
-		DHD_ERROR(("----- Board Rev  [%d] -----\n", base_system_rev_for_nv));
-		sprintf(chipver_tag, "_r%02d", base_system_rev_for_nv);
-	}
-#endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_DT */
-#ifdef SUPPORT_MULTIPLE_BOARD_REV_FROM_HW
-	DHD_ERROR(("----- Rev [%d] Fot MULTIPLE Board. -----\n", system_hw_rev));
-	if ((system_hw_rev >= 8) && (system_hw_rev <= 11)) {
-		DHD_ERROR(("This HW is Rev 08 ~ 11. this is For FD-HW\n"));
-		strcat(chipver_tag, "_FD");
-	}
-#endif /* SUPPORT_MULTIPLE_BOARD_REV_FROM_HW */
-
-	strcat(nv_path, chipver_tag);
-	return 0;
-}
-
 static int
 concate_revision_bcm43455(dhd_bus_t *bus,
         char *fw_path, int fw_path_len, char *nv_path, int nv_path_len)
@@ -9197,31 +9138,6 @@ concate_revision_bcm43455(dhd_bus_t *bus,
 	strcat(nv_path, chipver_tag);
 	return 0;
 }
-#endif /* !defined(MULTIPLE_CHIP_4345x) */
-
-#if defined(MULTIPLE_CHIP_4345x)
-static int
-concate_revision_bcm4345x(dhd_bus_t *bus,
-        char *fw_path, int fw_path_len, char *nv_path, int nv_path_len)
-{
-	uint32 chip_id;
-	char chipver_tag[10] = "_43454";
-
-	chip_id = bus->sih->chip;
-
-	if (chip_id == BCM43454_CHIP_ID) {
-			DHD_ERROR(("----- CHIP 43454 -----\n"));
-			strcat(fw_path, chipver_tag);
-			strcat(nv_path, chipver_tag);
-	} else if (chip_id == BCM4345_CHIP_ID) {
-		DHD_ERROR(("----- CHIP 43455  -----\n"));
-	} else {
-		DHD_ERROR(("----- Unknown chip , id r=%x -----\n", chip_id));
-	}
-
-	return 0;
-}
-#endif /* MULTIPLE_CHIP_4345x */
 
 int
 concate_revision(dhd_bus_t *bus, char *fw_path, int fw_path_len, char *nv_path, int nv_path_len)
@@ -9273,19 +9189,10 @@ concate_revision(dhd_bus_t *bus, char *fw_path, int fw_path_len, char *nv_path, 
 	case BCM43341_CHIP_ID:
 		res = concate_revision_bcm43341(bus, fw_path, fw_path_len, nv_path, nv_path_len);
 		break;
-#if defined(MULTIPLE_CHIP_4345x)
-	case BCM43454_CHIP_ID:
-	case BCM4345_CHIP_ID:
-		res = concate_revision_bcm4345x(bus, fw_path, fw_path_len, nv_path, nv_path_len);
-		break;
-#else /* MULTIPLE_CHIP_4345x */
-	case BCM43454_CHIP_ID:
-		res = concate_revision_bcm43454(bus, fw_path, fw_path_len, nv_path, nv_path_len);
-		break;
 	case BCM4345_CHIP_ID:
 		res = concate_revision_bcm43455(bus, fw_path, fw_path_len, nv_path, nv_path_len);
 		break;
-#endif /* MULTIPLE_CHIP_4345x */
+
 	default:
 		DHD_ERROR(("REVISION SPECIFIC feature is not required\n"));
 		return res;
