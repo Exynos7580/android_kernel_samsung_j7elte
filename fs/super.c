@@ -782,7 +782,7 @@ int do_remount_sb(struct super_block *sb, int flags, void *data, int force)
 	return do_remount_sb2(NULL, sb, flags, data, force);
 }
 
-static void do_emergency_remount(struct work_struct *work)
+void do_emergency_remount(struct work_struct *work)
 {
 	struct super_block *sb, *p = NULL;
 
