@@ -3568,6 +3568,7 @@ error:
 static int selinux_mmap_addr(unsigned long addr)
 {
 	int rc = 0;
+	u32 sid = current_sid();
 #ifdef CONFIG_RKP_KDP
 	if ((rc = security_integrity_current()))
 		return rc;
