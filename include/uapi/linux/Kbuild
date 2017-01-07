@@ -118,6 +118,7 @@ header-y += fd.h
 header-y += fdreg.h
 header-y += fib_rules.h
 header-y += fiemap.h
+header-y += fimg2d.h
 header-y += filter.h
 header-y += firewire-cdev.h
 header-y += firewire-constants.h
