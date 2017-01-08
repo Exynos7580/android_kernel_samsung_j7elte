@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfg80211.h 605803 2015-12-11 14:44:32Z $
+ * $Id: wl_cfg80211.h 557250 2015-05-18 08:52:07Z $
  */
 
 #ifndef _wl_cfg80211_h_
@@ -59,12 +59,6 @@ struct wl_ibss;
 #define WL_DBG_INFO	(1 << 1)
 #define WL_DBG_ERR	(1 << 0)
 
-#ifdef DHD_LOG_DUMP
-extern void dhd_log_dump_print(const char *fmt, ...);
-extern char *dhd_log_dump_get_timestamp(void);
-struct bcm_cfg80211 *wl_get_bcm_cfg80211_ptr(void);
-#endif /* DHD_LOG_DUMP */
-
 /* 0 invalidates all debug messages.  default is 1 */
 #define WL_DBG_LEVEL 0xFF
 
@@ -75,17 +69,6 @@ struct bcm_cfg80211 *wl_get_bcm_cfg80211_ptr(void);
 #endif
 
 #if defined(DHD_DEBUG)
-#ifdef DHD_LOG_DUMP
-#define	WL_ERR(args)	\
-do {	\
-	if (wl_dbg_level & WL_DBG_ERR) {	\
-		printk(KERN_INFO CFG80211_ERROR_TEXT "%s : ", __func__);	\
-		printk args;	\
-		dhd_log_dump_print("[%s] %s: ", dhd_log_dump_get_timestamp(), __func__);	\
-		dhd_log_dump_print args;	\
-	}	\
-} while (0)
-#else
 #define	WL_ERR(args)									\
 do {										\
 	if (wl_dbg_level & WL_DBG_ERR) {				\
@@ -93,7 +76,6 @@ do {										\
 			printk args;						\
 		}								\
 } while (0)
-#endif /* DHD_LOG_DUMP */
 #else /* defined(DHD_DEBUG) */
 #define	WL_ERR(args)									\
 do {										\
@@ -291,10 +273,11 @@ enum wl_management_type {
 	WL_ASSOC_RESP = 0x4
 };
 
-enum wl_pm_workq_act_type {
-	WL_PM_WORKQ_SHORT,
-	WL_PM_WORKQ_LONG,
-	WL_PM_WORKQ_DEL
+enum wl_handler_del_type {
+	WL_HANDLER_NOTUSE,
+	WL_HANDLER_DEL,
+	WL_HANDLER_MAINTAIN,
+	WL_HANDLER_PEND
 };
 
 /* beacon / probe_response */
@@ -531,10 +514,6 @@ typedef struct wl_if_event_info {
 	char name[IFNAMSIZ+1];
 } wl_if_event_info;
 
-#if defined(DHD_ENABLE_BIGDATA_LOGGING)
-#define GET_BSS_INFO_LEN 90
-#endif /* DHD_ENABLE_BIGDATA_LOGGING */
-
 /* private data of cfg80211 interface */
 struct bcm_cfg80211 {
 	struct wireless_dev *wdev;	/* representing cfg cfg80211 device */
@@ -641,6 +620,7 @@ struct bcm_cfg80211 {
 	struct work_struct wlan_work;
 	struct mutex event_sync;	/* maily for up/down synchronization */
 	bool disable_roam_event;
+	bool pm_enable_work_on;
 	struct delayed_work pm_enable_work;
 	vndr_ie_setbuf_t *ibss_vsie;	/* keep the VSIE for IBSS */
 	int ibss_vsie_len;
@@ -667,13 +647,8 @@ struct bcm_cfg80211 {
 #ifdef DHD_LOSSLESS_ROAMING
 	struct timer_list roam_timeout;   /* Timer for catch roam timeout */
 #endif
-#if defined(DHD_ENABLE_BIGDATA_LOGGING)
-	char bss_info[GET_BSS_INFO_LEN];
-	wl_event_msg_t event_auth_assoc;
-	u32 assoc_reject_status;
-	u32 roam_count;
-#endif /* DHD_ENABLE_BIGDATA_LOGGING */
 };
+
 
 static inline struct wl_bss_info *next_bss(struct wl_scan_results *list, struct wl_bss_info *bss)
 {
@@ -981,7 +956,7 @@ extern struct net_device* wl_cfg80211_allocate_if(struct bcm_cfg80211 *cfg, int 
 extern int wl_cfg80211_register_if(struct bcm_cfg80211 *cfg, int ifidx, struct net_device* ndev);
 extern int wl_cfg80211_remove_if(struct bcm_cfg80211 *cfg, int ifidx, struct net_device* ndev);
 extern int wl_cfg80211_scan_stop(bcm_struct_cfgdev *cfgdev);
-extern bool wl_cfg80211_is_concurrent_mode(void);
+extern bool wl_cfg80211_is_vsdb_mode(void);
 extern void* wl_cfg80211_get_dhdp(void);
 extern bool wl_cfg80211_is_p2p_active(void);
 extern void wl_cfg80211_dbg_level(u32 level);
@@ -1030,11 +1005,6 @@ extern s32 wl_cfg80211_apply_eventbuffer(struct net_device *ndev,
 extern void get_primary_mac(struct bcm_cfg80211 *cfg, struct ether_addr *mac);
 extern void wl_cfg80211_update_power_mode(struct net_device *dev);
 extern void wl_terminate_event_handler(void);
-#if defined(DHD_ENABLE_BIGDATA_LOGGING)
-extern s32 wl_cfg80211_get_bss_info(struct net_device *dev, char* cmd, int total_len);
-extern s32 wl_cfg80211_get_connect_failed_status(struct net_device *dev, char* cmd, int total_len);
-#endif /* DHD_ENABLE_BIGDATA_LOGGING */
-
 #define SCAN_BUF_CNT	2
 #define SCAN_BUF_NEXT	1
 #define WL_SCANTYPE_LEGACY	0x1

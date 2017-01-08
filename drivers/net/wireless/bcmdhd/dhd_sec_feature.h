@@ -1,7 +1,7 @@
 /*
  * Customer HW 4 dependant file
  *
- * Copyright (C) 1999-2016, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -80,24 +80,12 @@
 #define HW_OOB
 #endif /* CONFIG_MACH_SAMSUNG_ESPRESSO && CONFIG_MACH_SAMSUNG_ESPRESSO_10 */
 
-#if defined(CONFIG_MACH_UNIVERSAL5430) && !defined(CONFIG_BCM43455)
+#if defined(CONFIG_MACH_UNIVERSAL5430)
 #undef CUSTOM_SET_CPUCORE
 #define PRIMARY_CPUCORE 0
 #define DPC_CPUCORE 4
 #define RXF_CPUCORE 7
 #define ARGOS_CPU_SCHEDULER
-#elif defined(CONFIG_MACH_UNIVERSAL5430) && defined(CONFIG_BCM43455)
-#define CUSTOM_SET_CPUCORE
-#define PRIMARY_CPUCORE 0
-#define MAX_RETRY_SET_CPUCORE 5
-#define DPC_CPUCORE 0
-#define RXF_CPUCORE 4
-#elif defined(CONFIG_MACH_UNIVERSAL7580) && defined(CONFIG_BCM43455)
-#define CUSTOM_SET_CPUCORE
-#define PRIMARY_CPUCORE 0
-#define MAX_RETRY_SET_CPUCORE 5
-#define DPC_CPUCORE 1
-#define RXF_CPUCORE 2
 #elif defined(CONFIG_MACH_HL3G) || defined(CONFIG_MACH_HLLTE) || \
 	defined(CONFIG_MACH_M2LTE) || \
 	defined(CONFIG_MACH_UNIVERSAL5422)
@@ -159,9 +147,6 @@
 /* GAN LITE NAT KEEPALIVE FILTER */
 #define GAN_LITE_NAT_KEEPALIVE_FILTER
 #endif /* CONFIG_WLAN_REGION_CODE == 101 */
-#if (CONFIG_WLAN_REGION_CODE == 150) /* EUR FD(DualSIM) */
-#define SUPPORT_MULTIPLE_BOARD_REV_FROM_HW
-#endif /* CONFIG_WLAN_REGION_CODE == 150 */
 #endif /* CONFIG_WLAN_REGION_CODE >= 100 && CONFIG_WLAN_REGION_CODE < 200 */
 
 #if defined(CONFIG_V1A) || defined(CONFIG_V2A) || defined(CONFIG_MACH_VIENNAEUR)
@@ -201,6 +186,7 @@
 
 #if (CONFIG_WLAN_REGION_CODE == 202) /* KTT */
 #define VLAN_MODE_OFF
+#define CUSTOM_KEEP_ALIVE_SETTING	30000
 #define FULL_ROAMING_SCAN_PERIOD_60_SEC
 
 #ifdef CONFIG_MACH_UNIVERSAL5410
@@ -237,12 +223,6 @@
 #endif /* !READ_MACADDR && !WRITE_MACADDR && !RDWR_KORICS_MACADDR && !RDWR_MACADDR */
 
 #define WRITE_WLANINFO
-
-#if defined(CONFIG_BCM4343) && defined(CONFIG_ARCH_SCX35)
-#undef DHD_FIRSTREAD
-#undef MAX_HDR_READ
-#define CUSTOM_DPC_CPUCORE 0
-#endif /* CONFIG_BCM4343 && CONFIG_ARCH_SCX35 */
 
 #if defined(CONFIG_MACH_KONA)
 #define DISABLE_FLOW_CONTROL
