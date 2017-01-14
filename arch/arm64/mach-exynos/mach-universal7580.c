@@ -21,6 +21,17 @@
 
 #include "common.h"
 
+#ifdef CONFIG_OF_RESERVED_MEM
+#include <linux/of_reserved_mem.h>
+
+static int __init sss_reserved_mem_setup(struct reserved_mem *rmem)
+{
+	return 0;
+}
+
+RESERVEDMEM_OF_DECLARE(sss_debug, "secure,sss-debug", sss_reserved_mem_setup);
+#endif
+
 static const struct of_device_id of_iommu_bus_match_table[] = {
 	{ .compatible = "samsung,exynos-iommu-bus", },
 	{} /* Empty terminated list */
