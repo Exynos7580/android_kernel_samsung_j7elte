@@ -386,6 +386,7 @@ void pmu_cal_sys_prepare(enum sys_powerdown mode)
 		unsigned int tmp;
 		tmp = __raw_readl(EXT_REGULATOR_OPTION);
 
+		/*
 		if (is_cp_aud_enabled()) {
 			mode = SYS_CP_CALL;
 			pr_info("ENTER SYS_CP_CALL\n");
@@ -393,9 +394,8 @@ void pmu_cal_sys_prepare(enum sys_powerdown mode)
 
 			if (pmic_rev_get() < 0x2)
 				tmp |= REGULATOR_EMULATION;
-		} else {
-			tmp &= ~REGULATOR_EMULATION;
-		}
+		} else */
+		tmp &= ~REGULATOR_EMULATION;
 
 		__raw_writel(tmp, EXT_REGULATOR_OPTION);
 	}
@@ -403,10 +403,10 @@ void pmu_cal_sys_prepare(enum sys_powerdown mode)
 	/* CAUTION: sys_pwr_reg doesn't include EXT_REGULATOR_OPTION */
 	set_pmu_sys_pwr_reg(mode);
 	set_pmu_central_seq(true);
-
+/*
 	if (mode == SYS_CP_CALL)
 		set_pmu_central_seq_mif(false);
-	else
+	else */
 		set_pmu_central_seq_mif(true);
 }
 

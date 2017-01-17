@@ -99,6 +99,7 @@ static void exynos_show_wakeup_reason(bool sleep_abort)
 
 static int exynos_pm_suspend(void)
 {
+#if 0
 #ifdef CONFIG_SOC_EXYNOS7580
 	volatile unsigned int cp_stat;
 
@@ -106,6 +107,7 @@ static int exynos_pm_suspend(void)
 	exynos_ss_printk("CP_STAT : %x", cp_stat);
 	if (!cp_stat)
 		return -EINVAL;
+#endif
 #endif
 	exynos_prepare_sys_powerdown(SYS_SLEEP);
 /* tcxo should be disable for sleep(s5ve, gt58)*/
@@ -119,15 +121,16 @@ static int exynos_pm_suspend(void)
 
 static void exynos_cpu_prepare(void)
 {
-#ifdef CONFIG_SOC_EXYNOS7580
-	/* inform1: sleep mode or CP call mode */
-	/* inform0: return address */
-	if (__raw_readl(REG_INFORM1) != EXYNOS_CHECK_CPCALL)
-		__raw_writel(EXYNOS_CHECK_SLEEP, REG_INFORM1);
-#else
+
+//#ifdef CONFIG_SOC_EXYNOS7580
+//	/* inform1: sleep mode or CP call mode */
+//	/* inform0: return address */
+//	if (__raw_readl(REG_INFORM1) != EXYNOS_CHECK_CPCALL)
+//		__raw_writel(EXYNOS_CHECK_SLEEP, REG_INFORM1);
+//#else 
 	/* inform1: sleep mode */
 	__raw_writel(EXYNOS_CHECK_SLEEP, REG_INFORM1);
-#endif
+//#endif
 	/* inform0: return address */
 	__raw_writel(virt_to_phys(cpu_resume), REG_INFORM0);
 }
