@@ -48,6 +48,10 @@ static int kbasep_mem_profile_seq_show(struct seq_file *sfile, void *data)
 	struct kbase_context *kctx = sfile->private;
 
 	KBASE_DEBUG_ASSERT(kctx != NULL);
+	
+	/* MALI_SEC_INTEGRATION - Destroyed context */
+	if (kctx == NULL)
+		return 0;
 
 	/* MALI_SEC_INTEGRATION */
 	{
